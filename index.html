@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Entrance scanner: Tauri or Swift</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <h1>Entrance scanner: Tauri or native Swift</h1>
+    <p class="lead">Test on one iPhone 14 Pro (iOS 27.0.1). Camera scanning of QR codes and barcodes. The numbers were collected by hand, not on a lab setup.</p>
+    <p class="repos">Source code: <a href="https://github.com/alexneisc/scanner-proto">Tauri version (scanner-proto)</a> · <a href="https://github.com/alexneisc/scanner-swift">Swift version (scanner-swift)</a></p>
+
+    <section>
+      <h2>Summary</h2>
+      <ul>
+        <li><strong>Scan speed is the same.</strong> Both apps use the same iOS camera API. Medians differ by less than 10 ms.</li>
+        <li><strong>Swift uses 3–5 times less memory.</strong> Idle: about 14 MiB vs about 50 MiB. Peak during scanning: about 19 MiB vs about 98 MiB. Most of the Tauri memory is the WebView process.</li>
+        <li><strong>Swift uses about half the CPU time per scan.</strong> About 60 ms vs about 116 ms.</li>
+        <li><strong>Close focus needs extra camera setup in both apps.</strong> In Swift it is a few lines in the app code. In Tauri the official plugin does not allow it, so we had to patch the plugin's own Swift code.</li>
+        <li><strong>The flash is needed in the dark.</strong> In strong darkness neither app reads a code; with the flash on, scanning works. In Swift the flash is a few lines in the app code. In Tauri the plugin has no flash, a separate flash plugin froze the camera, so this also needed a plugin patch.</li>
+        <li><strong>Cost of the Tauri route:</strong> a local fork of the scanner plugin that has to be kept in sync with every plugin update. Android was not tested and would need its own changes.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>At a glance</h2>
+      <div class="legend"><span><i class="k-app"></i>Tauri app</span><span><i class="k-web"></i>Tauri WebView</span><span><i class="k-swift"></i>Swift</span></div>
+      <figure class="chart"><figcaption>Scan time, median (lower is better)</figcaption><svg viewBox="0 0 640 250" role="img" aria-label="Scan time, median (lower is better)"><line class="axis" x1="170" y1="6" x2="170" y2="238"/><rect class="c-app" x="170.0" y="10" width="96.4" height="18" rx="2"/><text class="val" x="272.4" y="23">482 ms</text><text class="bl" x="162" y="23" text-anchor="end">Tauri</text><rect class="c-swift" x="170.0" y="32" width="97.6" height="18" rx="2"/><text class="val" x="273.6" y="45">488 ms</text><text class="bl" x="162" y="45" text-anchor="end">Swift</text><text class="gl" x="8" y="34.0">Large QR, 10 cm</text><rect class="c-app" x="170.0" y="70" width="356.6" height="18" rx="2"/><text class="val" x="532.6" y="83">1783 ms</text><text class="bl" x="162" y="83" text-anchor="end">Tauri</text><rect class="c-swift" x="170.0" y="92" width="357.6" height="18" rx="2"/><text class="val" x="533.6" y="105">1788 ms</text><text class="bl" x="162" y="105" text-anchor="end">Swift</text><text class="gl" x="8" y="94.0">Small QR, 10 cm</text><rect class="c-app" x="170.0" y="130" width="358.6" height="18" rx="2"/><text class="val" x="534.6" y="143">1793 ms</text><text class="bl" x="162" y="143" text-anchor="end">Tauri</text><rect class="c-swift" x="170.0" y="152" width="356.8" height="18" rx="2"/><text class="val" x="532.8" y="165">1784 ms</text><text class="bl" x="162" y="165" text-anchor="end">Swift</text><text class="gl" x="8" y="154.0">Barcode, 10 cm</text><rect class="c-app" x="170.0" y="190" width="98.4" height="18" rx="2"/><text class="val" x="274.4" y="203">492 ms</text><text class="bl" x="162" y="203" text-anchor="end">Tauri</text><rect class="c-swift" x="170.0" y="212" width="99.2" height="18" rx="2"/><text class="val" x="275.2" y="225">496 ms</text><text class="bl" x="162" y="225" text-anchor="end">Swift</text><text class="gl" x="8" y="214.0">Barcode, 30 cm</text></svg></figure>
+      <figure class="chart"><figcaption>Memory, MiB (lower is better)</figcaption><svg viewBox="0 0 640 190" role="img" aria-label="Memory, MiB (lower is better)"><line class="axis" x1="170" y1="6" x2="170" y2="178"/><rect class="c-app" x="170.0" y="10" width="69.3" height="18" rx="2"/><rect class="c-web" x="239.3" y="10" width="121.5" height="18" rx="2"/><text class="val" x="366.9" y="23">50,1 MiB</text><text class="bl" x="162" y="23" text-anchor="end">Tauri</text><rect class="c-swift" x="170.0" y="32" width="53.7" height="18" rx="2"/><text class="val" x="229.7" y="45">14,1 MiB</text><text class="bl" x="162" y="45" text-anchor="end">Swift</text><text class="gl" x="8" y="34.0">Idle</text><rect class="c-app" x="170.0" y="70" width="88.8" height="18" rx="2"/><rect class="c-web" x="258.8" y="70" width="285.0" height="18" rx="2"/><text class="val" x="549.7" y="83">98,1 MiB</text><text class="bl" x="162" y="83" text-anchor="end">Tauri</text><rect class="c-swift" x="170.0" y="92" width="70.9" height="18" rx="2"/><text class="val" x="246.9" y="105">18,6 MiB</text><text class="bl" x="162" y="105" text-anchor="end">Swift</text><text class="gl" x="8" y="94.0">Peak, 10 scans</text><rect class="c-app" x="170.0" y="130" width="77.3" height="18" rx="2"/><rect class="c-web" x="247.3" y="130" width="120.4" height="18" rx="2"/><text class="val" x="373.7" y="143">51,9 MiB</text><text class="bl" x="162" y="143" text-anchor="end">Tauri</text><rect class="c-swift" x="170.0" y="152" width="69.7" height="18" rx="2"/><text class="val" x="245.7" y="165">18,3 MiB</text><text class="bl" x="162" y="165" text-anchor="end">Swift</text><text class="gl" x="8" y="154.0">After 10 scans</text></svg></figure>
+      <figure class="chart"><figcaption>CPU time per scan (lower is better)</figcaption><svg viewBox="0 0 640 70" role="img" aria-label="CPU time per scan (lower is better)"><line class="axis" x1="170" y1="6" x2="170" y2="58"/><rect class="c-app" x="170.0" y="10" width="268.8" height="18" rx="2"/><rect class="c-web" x="438.8" y="10" width="102.4" height="18" rx="2"/><text class="val" x="547.2" y="23">116 ms</text><text class="bl" x="162" y="23" text-anchor="end">Tauri</text><rect class="c-swift" x="170.0" y="32" width="192.0" height="18" rx="2"/><text class="val" x="368.0" y="45">60 ms</text><text class="bl" x="162" y="45" text-anchor="end">Swift</text><text class="gl" x="8" y="34.0">10 scans in a row</text></svg></figure>
+      <p class="note">Tauri memory is the sum of the app process and the WebView process. For the peak, the two peaks are added; they happened within the same scan series. Same iPhone 14 Pro for all numbers.</p>
+    </section>
+
+    <section>
+      <h2>The close-focus problem</h2>
+      <p>A guide holds the phone close to the ticket, often 5–10 cm. Small codes have to be this close, otherwise the camera does not see enough detail.</p>
+      <p>The main camera lens of the iPhone 14 Pro cannot focus that close. Its minimum focus distance is roughly 15–20 cm. Closer than that the image stays blurry and the code is never read.</p>
+      <p>The phone can focus much closer, but only through its ultra-wide lens (macro). The system Camera app switches to that lens automatically. A scanning app gets this only if it asks iOS for the combined multi-lens camera instead of the main lens. Then iOS switches lenses by itself when the code comes close; on screen this looks like a jump in the picture.</p>
+      <p>What we saw: without this setup, both a native Swift app and the official Tauri plugin failed to read a small QR code at close range. With it, both read it. Switching lenses costs time: a small code at 10 cm takes about 1,8 s, a large code at the same distance about 0,5 s.</p>
+      <p class="note">Phones without an ultra-wide lens (for example iPhone SE) probably cannot focus this close at all. Not tested.</p>
+    </section>
+
+    <section>
+      <h2>Scan tests (Tauri)</h2>
+      <table>
+        <thead>
+          <tr><th>Code</th><th>Distance</th><th>Light</th><th>Median, ms</th><th>Range, ms</th><th>Failures</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>QR 4.3 × 4.3 cm</td><td>10 cm</td><td>good</td><td>482</td><td>451–489</td><td>0 of 10</td></tr>
+          <tr><td>QR 1 × 1 cm</td><td>10 cm</td><td>good</td><td>1783</td><td>1263–1957</td><td>0 of 10</td></tr>
+          <tr><td>QR 1 × 1 cm</td><td>30 cm</td><td>good</td><td>—</td><td>—</td><td>1 of 1</td></tr>
+          <tr><td>Barcode 3.2 × 1 cm</td><td>10 cm</td><td>good</td><td>1793</td><td>1784–1799</td><td>0 of 10</td></tr>
+          <tr><td>Barcode 3.2 × 1 cm</td><td>30 cm</td><td>good</td><td>492</td><td>481–570</td><td>0 of 10</td></tr>
+        </tbody>
+      </table>
+      <p class="note">Low light: the time did not change. In strong darkness the QR code was not read without the flash; with the flash on, it was read.</p>
+    </section>
+
+    <section>
+      <h2>Plugin patch (Tauri)</h2>
+      <p>The patch has two parts. Both changes are made in a local copy of the plugin (the vendor folder), in the Swift code for iOS.</p>
+      <ol>
+        <li><strong>Focus at close range.</strong> The official plugin opens the main lens, which cannot focus close (see "The close-focus problem"). The patch selects the combined multi-lens camera so iOS can switch to the ultra-wide lens.</li>
+        <li><strong>Flash during a scan.</strong> The plugin has no such feature. The patch adds a set_torch command that turns on the flash for the camera already used by the scan. The flash turns off when the scan ends or is cancelled.</li>
+      </ol>
+      <p class="note">Status: both parts were checked by hand on one device. Nothing was measured. Description and status: PATCH.md.</p>
+    </section>
+
+    <section>
+      <h2>Resources (CPU, RAM), Tauri</h2>
+      <p class="note">Measured in Xcode Instruments, Activity Monitor template, Release build (signed for development). Two processes: the app and the WebView (WebContent). Memory is the Physical Memory Footprint column.</p>
+
+      <h3>Idle, 60 s, no other apps running</h3>
+      <table>
+        <thead>
+          <tr><th>Process</th><th>Memory, MiB</th><th>CPU peak</th><th>CPU Time change</th><th>Threads</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Scanner Proto</td><td>18,19–19,02</td><td>0,1%</td><td>+1,35 ms</td><td>9–10</td></tr>
+          <tr><td>WebContent</td><td>31,86–32,17</td><td>0,8%</td><td>+10,85 ms</td><td>2–7</td></tr>
+        </tbody>
+      </table>
+
+      <h3>One scan (large QR, 10 cm)</h3>
+      <table>
+        <thead>
+          <tr><th>Process</th><th>Before → peak → after, MiB</th><th>CPU peak</th><th>CPU Time change</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Scanner Proto</td><td>18,16 → 24,17 → 22,41</td><td>10,2%</td><td>+179 ms</td></tr>
+          <tr><td>WebContent</td><td>31,86 → 64,77 → 31,78</td><td>2,0%</td><td>+46 ms</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Ten scans in a row (run 34 s)</h3>
+      <table>
+        <thead>
+          <tr><th>Process</th><th>Before → peak → after, MiB</th><th>CPU peak</th><th>CPU Time change</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Scanner Proto</td><td>18,10 → 23,33 → 20,28</td><td>10,4%</td><td>+836 ms (about 84 ms per scan)</td></tr>
+          <tr><td>WebContent</td><td>31,88 → 74,75 → 31,58</td><td>2,9%</td><td>+323 ms (about 32 ms per scan)</td></tr>
+        </tbody>
+      </table>
+      <p class="note">After the series, WebContent memory returns to its idle level. Scanner Proto stays about 2 MiB higher. Cause not checked.</p>
+
+      <h3>In-app scan time, ten scans in a row (large QR, 10 cm)</h3>
+      <p>Median 489 ms, range 465–649 ms, average about 501 ms. The slowest scan (649 ms) was the first of the series. Probably camera warm-up, not verified.</p>
+    </section>
+
+    <section>
+      <h2>Resources (CPU, RAM), Swift</h2>
+      <p class="note">All Swift numbers below are from the fixed build.</p>
+      <p class="note">Native SwiftUI + AVFoundation app with the same features. Same phone, same Instruments template, Release build (signed for development). One process, no WebView. Camera setup: virtual triple camera, start at main-lens zoom, near focus range.</p>
+
+      <h3>Idle, 60 s</h3>
+      <table>
+        <thead><tr><th>Process</th><th>Memory, MiB</th><th>CPU peak</th><th>CPU Time change</th><th>Threads</th></tr></thead>
+        <tbody><tr><td>Scanner Swift</td><td>14,08–14,88</td><td>0,1%</td><td>+1,01 ms</td><td>2–4</td></tr></tbody>
+      </table>
+
+      <h3>One scan (large QR, 10 cm)</h3>
+      <table>
+        <thead><tr><th>Process</th><th>Before → peak → after, MiB</th><th>CPU peak</th><th>CPU Time change</th></tr></thead>
+        <tbody><tr><td>Scanner Swift</td><td>14,74 → 18,45 → 18,28</td><td>9,7%</td><td>+137 ms</td></tr></tbody>
+      </table>
+
+      <h3>Ten scans in a row</h3>
+      <table>
+        <thead><tr><th>Process</th><th>Before → peak → after, MiB</th><th>CPU peak</th><th>CPU Time change</th></tr></thead>
+        <tbody><tr><td>Scanner Swift</td><td>14,10 → 18,56 → 18,31</td><td>9,8%</td><td>about +600 ms (about 60 ms per scan)</td></tr></tbody>
+      </table>
+      <p class="note">Camera activity in the series lasted about 13 s (Tauri: about 14 s). Instruments shows CPU Time with 0,01 s precision here, so the total is ±5 ms.</p>
+    </section>
+
+    <section>
+      <h2>Scan tests (Swift)</h2>
+      <table>
+        <thead><tr><th>Code</th><th>Distance</th><th>Light</th><th>Median, ms</th><th>Range, ms</th><th>Failures</th></tr></thead>
+        <tbody>
+          <tr><td>QR 4.3 × 4.3 cm</td><td>10 cm</td><td>good</td><td>488</td><td>483–563</td><td>0 of 10</td></tr>
+          <tr><td>QR 1 × 1 cm</td><td>10 cm</td><td>good</td><td>1788</td><td>1256–1990</td><td>0 of 10</td></tr>
+          <tr><td>Barcode 3.2 × 1 cm</td><td>10 cm</td><td>good</td><td>1784</td><td>1182–1793</td><td>0 of 10</td></tr>
+          <tr><td>Barcode 3.2 × 1 cm</td><td>30 cm</td><td>good</td><td>496</td><td>489–937</td><td>0 of 10</td></tr>
+        </tbody>
+      </table>
+      <p class="note">The first Swift build was about 700 ms slower in every test. Timestamps showed the delay came after the camera had started: the preview layer was attached to an already running session. After creating the preview layer before starting the session, scan times match Tauri within 10 ms. Numbers above are from the fixed build.</p>
+    </section>
+
+    <section>
+      <h2>Tauri vs Swift, side by side</h2>
+      <table>
+        <thead><tr><th>Metric</th><th>Tauri (app + WebView)</th><th>Swift</th></tr></thead>
+        <tbody>
+          <tr><td>Memory, idle</td><td>about 50 MiB</td><td>about 14 MiB</td></tr>
+          <tr><td>Memory, peak during 10 scans</td><td>about 98 MiB</td><td>18,56 MiB</td></tr>
+          <tr><td>Memory after 10 scans</td><td>about 52 MiB</td><td>18,31 MiB</td></tr>
+          <tr><td>CPU time per scan</td><td>about 116 ms</td><td>about 60 ms</td></tr>
+          <tr><td>CPU, idle</td><td>near zero</td><td>near zero</td></tr>
+          <tr><td>Close focus</td><td>needed a patch to the plugin</td><td>a few lines in app code</td></tr>
+          <tr><td>Flash during scan</td><td>needed a patch to the plugin; separate torch plugin froze the camera</td><td>a few lines in app code</td></tr>
+          <tr><td>Small QR (1 cm) at close range</td><td>works with the patch</td><td>works with the same camera setup; did not work without it</td></tr>
+          <tr><td>Scan time, large QR, 10 cm (median)</td><td>482 ms</td><td>488 ms</td></tr>
+          <tr><td>Scan time, small QR, 10 cm (median)</td><td>1 783 ms</td><td>1 788 ms</td></tr>
+          <tr><td>Scan time, barcode, 10 cm (median)</td><td>1 793 ms</td><td>1 784 ms</td></tr>
+          <tr><td>Scan time, barcode, 30 cm (median)</td><td>492 ms</td><td>496 ms</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Flash</h2>
+      <p><strong>Tauri (iOS):</strong> the first attempt used the separate tauri-plugin-torch plugin. It broke scanning: the image froze while the flash was on. The working version required changing the scan plugin itself, adding a set_torch command that controls the camera already used by the scan. No extra plugin is needed, but the patch must be maintained when the plugin updates.</p>
+      <p><strong>Tauri (Android):</strong> not done. A separate flash plugin will probably not work either, so a custom change will be needed.</p>
+      <p><strong>Swift (iOS):</strong> the torch is switched on the same camera device the scan session uses. No extra libraries. Checked by hand: the flash works and scanning continues. Apple's ready-made scanner (VisionKit DataScannerViewController) was tried first and dropped: it gives no access to its camera, and a separate torch froze the image, the same problem as in Tauri.</p>
+    </section>
+
+    <footer>Updated by hand. Data from one iPhone; other models may give different numbers.</footer>
+  </main>
+</body>
+</html>
