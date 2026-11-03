@@ -169,6 +169,7 @@
           <tr><td>Scan time, barcode, 30 cm (median)</td><td>492 ms</td><td>496 ms</td></tr>
         </tbody>
       </table>
+      <p class="note">Both apps were built in Release and tested with 10 scans per case. The scan timers start at slightly different points. In Tauri the time is measured in JavaScript, from the <code>scan()</code> call to the result, so it includes the bridge between the WebView and the native plugin. In Swift the time is measured in native code, from the start of camera setup to the decoded result. Both start after the camera permission is granted. The bridge adds little here: the medians differ by less than 10 ms.</p>
     </section>
 
     <section>
